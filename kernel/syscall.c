@@ -19,6 +19,10 @@ fetchaddr(uint64 addr, uint64 *ip)
   return 0;
 }
 
+
+// 内核实现了安全地将数据传输到用户提供的地址和从用户提供的地址传输数据的功能。
+// fetchstr是一个例子（kernel / syscall.c:25）。文件系统调用，如exec，
+// 使用fetchstr从用户空间检索字符串文件名参数。fetchstr调用copyinstr来完成这项困难的工作。
 // Fetch the nul-terminated string at addr from the current process.
 // Returns length of string, not including nul, or -1 for error.
 int
@@ -104,6 +108,7 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
+extern uint64 sys_trace(void);
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -127,7 +132,12 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_trace]   sys_trace,
 };
+
+char* syscall_numtoname[] = { "fork","exit","wait","pipe","read","kill","exec","fstat","chdir",\
+                                "dup", "getpid", "sbrk", "sleep", "uptime", "open", "write", "mknod", \
+                                "unlink", "link", "mkdir", "close", "trace" };
 
 void
 syscall(void)
@@ -136,9 +146,13 @@ syscall(void)
   struct proc *p = myproc();
 
   num = p->trapframe->a7;
-  if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+  if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+    // 将返回值记在a0中
     p->trapframe->a0 = syscalls[num]();
-  } else {
+    if((p->mask>>(num))&1 )
+      printf("%d: syscall %s -> %d\n", p->pid, syscall_numtoname[num - 1], p->trapframe->a0);
+  }
+  else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);
     p->trapframe->a0 = -1;
