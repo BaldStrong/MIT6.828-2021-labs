@@ -318,7 +318,6 @@ fork(void)
   acquire(&np->lock);
   np->mask = p->mask;
   release(&np->lock);
-
   return pid;
 }
 
@@ -657,4 +656,21 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+int
+getnproc() {
+  int nproc = 0;
+  
+  struct proc* p;
+  for (p = proc; p < &proc[NPROC]; p++) {
+    if (p != myproc()) {
+      acquire(&p->lock);
+      if (p->state != UNUSED) {
+        nproc++;
+      }
+      release(&p->lock);
+    }
+  }
+  return nproc;
 }

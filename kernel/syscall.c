@@ -109,6 +109,7 @@ extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 extern uint64 sys_trace(void);
+extern uint64 sys_sysinfo(void);
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -133,9 +134,10 @@ static uint64 (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_trace]   sys_trace,
+[SYS_sysinfo] sys_sysinfo,
 };
 
-char* syscall_numtoname[] = { "fork","exit","wait","pipe","read","kill","exec","fstat","chdir",\
+char* syscall_NumToName[] = { "fork","exit","wait","pipe","read","kill","exec","fstat","chdir",\
                                 "dup", "getpid", "sbrk", "sleep", "uptime", "open", "write", "mknod", \
                                 "unlink", "link", "mkdir", "close", "trace" };
 
@@ -149,8 +151,9 @@ syscall(void)
   if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     // 将返回值记在a0中
     p->trapframe->a0 = syscalls[num]();
-    if((p->mask>>(num))&1 )
-      printf("%d: syscall %s -> %d\n", p->pid, syscall_numtoname[num - 1], p->trapframe->a0);
+    // int右移num位，拿到第num位，与1，查看是否为1
+    if ((p->mask >> (num)) & 1)
+      printf("%d: syscall %s -> %d\n", p->pid, syscall_NumToName[num - 1], p->trapframe->a0);
   }
   else {
     printf("%d %s: unknown sys call %d\n",

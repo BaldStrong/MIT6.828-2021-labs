@@ -9,7 +9,7 @@
 #include "riscv.h"
 #include "defs.h"
 
-void freerange(void *pa_start, void *pa_end);
+void freerange(void* pa_start, void* pa_end);
 
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
@@ -79,4 +79,19 @@ kalloc(void)
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
+}
+
+uint64
+getfreemem() {
+  struct run* r;
+  // 遍历链表，计算已使用的块
+  acquire(&kmem.lock);
+  r = kmem.freelist;
+  int i = 0;
+  while (r) {
+    r = r->next;
+    i++;
+  }
+  release(&kmem.lock);
+  return i * PGSIZE;
 }
