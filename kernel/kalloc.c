@@ -27,13 +27,18 @@ void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
+  // kinit调用freerange将内存添加到空闲列表中，
+  // 在freerange中每页都会调用kfree。
   freerange(end, (void*)PHYSTOP);
 }
 
 void
 freerange(void *pa_start, void *pa_end)
 {
-  char *p;
+  char* p;
+  // PTE只能引用在4096字节边界上对齐的物理地址（是4096的倍数），
+  // 所以freerange使用PGROUNDUP来确保它只释放对齐的物理地址。
+  // 转换为uint64类型是要对地址进行计算，转换为char*是用作读写内存的指针
   p = (char*)PGROUNDUP((uint64)pa_start);
   for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
     kfree(p);
@@ -57,6 +62,7 @@ kfree(void *pa)
   r = (struct run*)pa;
 
   acquire(&kmem.lock);
+  // 页面前置（头插法）到空闲列表中
   r->next = kmem.freelist;
   kmem.freelist = r;
   release(&kmem.lock);

@@ -53,6 +53,7 @@ kvmmake(void)
 void
 kvminit(void)
 {
+  // 分配一个物理内存页来保存根页表页。
   kernel_pagetable = kvmmake();
 }
 
@@ -83,17 +84,22 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
   if(va >= MAXVA)
     panic("walk");
 
-  for(int level = 2; level > 0; level--) {
+  // walk一次从3级页表中获取9个比特位。
+  // 它使用上一级的9位虚拟地址来查找下一级页表或最终页面的PTE
+  for (int level = 2; level > 0; level--) {
     pte_t *pte = &pagetable[PX(level, va)];
     if(*pte & PTE_V) {
       pagetable = (pagetable_t)PTE2PA(*pte);
     } else {
-      if(!alloc || (pagetable = (pde_t*)kalloc()) == 0)
+      // 如果PTE无效，则所需的页面还没有分配；
+      // 如果设置了alloc参数，walk就会分配一个新的页表页面，并将其物理地址放在PTE中。
+      if (!alloc || (pagetable = (pde_t*)kalloc()) == 0)
         return 0;
       memset(pagetable, 0, PGSIZE);
       *pte = PA2PTE(pagetable) | PTE_V;
     }
   }
+  // 返回树中最低一级的PTE地址
   return &pagetable[PX(0, va)];
 }
 
@@ -145,8 +151,9 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   
   a = PGROUNDDOWN(va);
   last = PGROUNDDOWN(va + size - 1);
-  for(;;){
-    if((pte = walk(pagetable, a, 1)) == 0)
+  for (;;) {
+    // 调用walk来查找该地址的PTE地址。
+    if ((pte = walk(pagetable, a, 1)) == 0)
       return -1;
     if(*pte & PTE_V)
       panic("mappages: remap");
