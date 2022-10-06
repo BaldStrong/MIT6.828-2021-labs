@@ -83,17 +83,30 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
   if(va >= MAXVA)
     panic("walk");
 
-  for(int level = 2; level > 0; level--) {
-    pte_t *pte = &pagetable[PX(level, va)];
-    if(*pte & PTE_V) {
+  for (int level = 2; level > 0; level--) {
+    // 根据当前level，对va进行移位和掩码操作，得到当前level页表中的对应PTE条目
+    // level=2时，向右移出12+2*9=30位，经掩码后得到9位level=2页表的PTE编号
+    // level=1时，向右移出12+9=21位，经掩码后得到9位level=1页表的PTE编号
+    pte_t* pte = &pagetable[PX(level, va)];
+    if (*pte & PTE_V) {
+      // 提取物理地址，对应一个页的首地址
+      // 将最右10位标志位移出，补充12位全0的偏移位，原44位PPN保留，得到指向下一层页表的物理地址
+      // level=2时，pagetable指向level=1的页表
+      // level=1时，pagetable指向level=0的页表
       pagetable = (pagetable_t)PTE2PA(*pte);
     } else {
-      if(!alloc || (pagetable = (pde_t*)kalloc()) == 0)
+      // 对应PTE不存在，且alloc被置位，则为该PTE指向的下一层页表分配一页
+      if (!alloc || (pagetable = (pde_t*)kalloc()) == 0)
         return 0;
+      // 清空页表
       memset(pagetable, 0, PGSIZE);
+      // 更新PTE，将56位物理地址右移12位去掉偏移位，移进10位标志位，同时将PTE_V置1
       *pte = PA2PTE(pagetable) | PTE_V;
     }
   }
+  // 此时pagetable指向level=0的页表
+  // level = 0，向右移出12位，经掩码后得到9位level = 0页表的PTE编号
+  // 返回va对应的level = 0页表中的对应PTE
   return &pagetable[PX(0, va)];
 }
 
@@ -150,9 +163,12 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
       return -1;
     if(*pte & PTE_V)
       panic("mappages: remap");
+    // 将物理地址pa的PPN提取出来，加上标志位信息perm和有效位PTE_V
     *pte = PA2PTE(pa) | perm | PTE_V;
-    if(a == last)
+    // 分到了能够满足size的最小页数就返回,
+    if (a == last)
       break;
+    // 已经分配了一页，虚拟地址的起始位置和物理地址起始位置都加一页
     a += PGSIZE;
     pa += PGSIZE;
   }
@@ -430,5 +446,27 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return 0;
   } else {
     return -1;
+  }
+}
+
+void
+vmprint(pagetable_t pagetable, int level) {
+  if (level==0)
+    printf("page table %p\n", pagetable);
+  for (int i = 0; i < 512; i++) {
+    pte_t pte = pagetable[i];
+    if (pte & PTE_V) {
+      // this PTE points to a lower-level page table.
+      uint64 child = PTE2PA(pte);
+      if (level == 0) {
+        printf("..%d: pte %p pa %p\n", i, pte, child);
+        vmprint((pagetable_t)child, level+1); //注意不是++level，更不是level++
+      } else if (level == 1) {
+        printf(".. ..%d: pte %p pa %p\n", i, pte, child);
+        vmprint((pagetable_t)child, level+1);
+      } else if (level == 2) {
+        printf(".. .. ..%d: pte %p pa %p\n", i, pte, child);
+      }
+    }
   }
 }

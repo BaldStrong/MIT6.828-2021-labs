@@ -80,6 +80,26 @@ sys_sleep(void)
 int
 sys_pgaccess(void)
 {
+  uint64 base;
+  int len;
+  uint64 mask;
+  
+  if (argaddr(0, &base) < 0 || argint(1, &len) < 0 || argaddr(2, &mask) < 0)
+    return -1;
+  struct proc* p = myproc();
+  uint64 abits = 0;
+  
+  for (int i = 0; i < len; i++) {
+    pte_t*  pte = walk(p->pagetable, (uint64)base + i * PGSIZE, 0);
+    if (*pte & PTE_G) {
+      abits |= (1 << i);
+      printf("%d %d %d\n", i, abits, (uint64)pte);
+      *pte &= ~PTE_G; //已访问过，该位 置零
+    }
+  }
+  
+  copyout(p->pagetable, mask, (char*)&abits, sizeof(uint64));
+  
   // lab pgtbl: your code here.
   return 0;
 }

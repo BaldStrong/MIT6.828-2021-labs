@@ -51,8 +51,9 @@ procinit(void)
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
-      initlock(&p->lock, "proc");
-      p->kstack = KSTACK((int) (p - proc));
+    initlock(&p->lock, "proc");
+    // 为每个用户进程分配一个内核栈
+    p->kstack = KSTACK((int)(p - proc));
   }
 }
 
@@ -127,6 +128,16 @@ found:
     return 0;
   }
 
+  #ifdef LAB_PGTBL
+  if ((p->usyscall = (struct usyscall*)kalloc()) == 0) {
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+  // p->usyscall->pid = p->pid; // 这样应该是起不到加速的效果
+  memmove(p->usyscall, &p->pid, 8);//复制地址，这样页面也拥有
+#endif
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -153,7 +164,14 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
-  if(p->pagetable)
+#ifdef LAB_PGTBL
+  // 释放内存
+  if (p->usyscall)
+    kfree((void*)p->usyscall);
+  p->usyscall = 0;
+#endif
+  if (p->pagetable)
+    // 取消页表映射
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
   p->sz = 0;
@@ -172,12 +190,20 @@ pagetable_t
 proc_pagetable(struct proc *p)
 {
   pagetable_t pagetable;
-
   // An empty page table.
   pagetable = uvmcreate();
   if(pagetable == 0)
     return 0;
 
+  #ifdef LAB_PGTBL
+  if (mappages(pagetable, USYSCALL, PGSIZE,
+    (uint64)(p->usyscall), PTE_R | PTE_U) < 0) {
+    // 创建一个虚拟地址是USYSCALL的页面映射
+    uvmunmap(pagetable, USYSCALL, 1, 0);
+    uvmfree(pagetable, 0);
+    return 0;
+  }
+  #endif
   // map the trampoline code (for system call return)
   // at the highest user virtual address.
   // only the supervisor uses it, on the way
@@ -195,7 +221,7 @@ proc_pagetable(struct proc *p)
     uvmfree(pagetable, 0);
     return 0;
   }
-
+  
   return pagetable;
 }
 
@@ -206,6 +232,9 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
+#ifdef LAB_PGTBL
+  uvmunmap(pagetable, USYSCALL, 1, 0);
+#endif
   uvmfree(pagetable, sz);
 }
 

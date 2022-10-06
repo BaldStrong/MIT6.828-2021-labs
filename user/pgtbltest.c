@@ -41,6 +41,7 @@ ugetpid_test()
         exit(1);
       continue;
     }
+    // 需要让ugetpid拿到正确的pid
     if (getpid() != ugetpid())
       err("missmatched PID");
     exit(0);
@@ -51,18 +52,22 @@ ugetpid_test()
 void
 pgaccess_test()
 {
-  char *buf;
+  // 使用flag记录页表中访问过的位
+  char* buf;
   unsigned int abits;
   printf("pgaccess_test starting\n");
   testname = "pgaccess_test";
   buf = malloc(32 * PGSIZE);
+  // buf[PGSIZE * 1] += 1;
   if (pgaccess(buf, 32, &abits) < 0)
     err("pgaccess failed");
+  printf("%d \n", abits);
   buf[PGSIZE * 1] += 1;
   buf[PGSIZE * 2] += 1;
   buf[PGSIZE * 30] += 1;
   if (pgaccess(buf, 32, &abits) < 0)
     err("pgaccess failed");
+  printf("%d \n", abits);
   if (abits != ((1 << 1) | (1 << 2) | (1 << 30)))
     err("incorrect access bits set");
   free(buf);

@@ -145,7 +145,8 @@ memcpy(void *dst, const void *src, uint n)
 int
 ugetpid(void)
 {
-  struct usyscall *u = (struct usyscall *)USYSCALL;
+  // USYSCALL是个虚拟地址，转为usyscall指针后，读取内容
+  struct usyscall* u = (struct usyscall*)USYSCALL;
   return u->pid;
 }
 #endif
