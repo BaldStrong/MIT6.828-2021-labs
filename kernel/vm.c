@@ -456,16 +456,23 @@ vmprint(pagetable_t pagetable, int level) {
   for (int i = 0; i < 512; i++) {
     pte_t pte = pagetable[i];
     if (pte & PTE_V) {
-      // this PTE points to a lower-level page table.
+      // uint64 child = PTE2PA(pte);
+      // if (level == 0) {
+      //   printf("..%d: pte %p pa %p\n", i, pte, child);
+      //   vmprint((pagetable_t)child, level+1); //注意不是++level，更不是level++
+      // } else if (level == 1) {
+      //   printf(".. ..%d: pte %p pa %p\n", i, pte, child);
+      //   vmprint((pagetable_t)child, level+1);
+      // } else if (level == 2) {
+      //   printf(".. .. ..%d: pte %p pa %p\n", i, pte, child);
+      // }
+      for (int dep = level; dep > 0;dep--) {
+        printf(".. ");
+      }
       uint64 child = PTE2PA(pte);
-      if (level == 0) {
-        printf("..%d: pte %p pa %p\n", i, pte, child);
-        vmprint((pagetable_t)child, level+1); //注意不是++level，更不是level++
-      } else if (level == 1) {
-        printf(".. ..%d: pte %p pa %p\n", i, pte, child);
-        vmprint((pagetable_t)child, level+1);
-      } else if (level == 2) {
-        printf(".. .. ..%d: pte %p pa %p\n", i, pte, child);
+      printf("..%d: pte %p pa %p\n", i, pte, child);
+      if ((pte & (PTE_R | PTE_W | PTE_X)) == 0) {
+        vmprint((pagetable_t)child, level + 1);
       }
     }
   }
