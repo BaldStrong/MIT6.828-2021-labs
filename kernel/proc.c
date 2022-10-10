@@ -136,7 +136,7 @@ found:
   }
   // p->usyscall->pid = p->pid; // 这样应该是起不到加速的效果
   memmove(p->usyscall, &p->pid, 8);//复制地址，这样页面也拥有
-#endif
+  #endif
 
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
@@ -195,15 +195,6 @@ proc_pagetable(struct proc *p)
   if(pagetable == 0)
     return 0;
 
-  #ifdef LAB_PGTBL
-  if (mappages(pagetable, USYSCALL, PGSIZE,
-    (uint64)(p->usyscall), PTE_R | PTE_U) < 0) {
-    // 创建一个虚拟地址是USYSCALL的页面映射
-    uvmunmap(pagetable, USYSCALL, 1, 0);
-    uvmfree(pagetable, 0);
-    return 0;
-  }
-  #endif
   // map the trampoline code (for system call return)
   // at the highest user virtual address.
   // only the supervisor uses it, on the way
@@ -221,6 +212,17 @@ proc_pagetable(struct proc *p)
     uvmfree(pagetable, 0);
     return 0;
   }
+
+#ifdef LAB_PGTBL
+  // 一定要在TRAMPOLINE mappages之后再映射
+  if (mappages(pagetable, USYSCALL, PGSIZE,
+    (uint64)(p->usyscall), PTE_R | PTE_U) < 0) {
+    // 创建一个虚拟地址是USYSCALL的页面映射
+    uvmunmap(pagetable, USYSCALL, 1, 0);
+    uvmfree(pagetable, 0);
+    return 0;
+  }
+#endif
   
   return pagetable;
 }

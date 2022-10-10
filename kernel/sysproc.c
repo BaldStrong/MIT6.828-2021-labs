@@ -75,7 +75,6 @@ sys_sleep(void)
   return 0;
 }
 
-
 #ifdef LAB_PGTBL
 int
 sys_pgaccess(void)
@@ -88,16 +87,17 @@ sys_pgaccess(void)
     return -1;
   struct proc* p = myproc();
   uint64 abits = 0;
-  
+  // 遍历base中所有页面
   for (int i = 0; i < len; i++) {
     pte_t*  pte = walk(p->pagetable, (uint64)base + i * PGSIZE, 0);
-    if (*pte & PTE_G) {
+    if (*pte & PTE_A) {
       abits |= (1 << i);
-      printf("%d %d %d\n", i, abits, (uint64)pte);
-      *pte &= ~PTE_G; //已访问过，该位 置零
+      // printf("%d %d %p\n", i, abits, *pte);
+      *pte &= ~PTE_A; //已访问过，该位 置零
     }
   }
-  
+  // vmprint(p->pagetable, 0);
+
   copyout(p->pagetable, mask, (char*)&abits, sizeof(uint64));
   
   // lab pgtbl: your code here.

@@ -23,10 +23,9 @@ kvmmake(void)
 
   kpgtbl = (pagetable_t) kalloc();
   memset(kpgtbl, 0, PGSIZE);
-
+  
   // uart registers
   kvmmap(kpgtbl, UART0, UART0, PGSIZE, PTE_R | PTE_W);
-
   // virtio mmio disk interface
   kvmmap(kpgtbl, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
 
@@ -77,7 +76,7 @@ kvminithart()
 //   21..29 -- 9 bits of level-1 index.
 //   12..20 -- 9 bits of level-0 index.
 //    0..11 -- 12 bits of byte offset within the page.
-pte_t *
+pte_t*
 walk(pagetable_t pagetable, uint64 va, int alloc)
 {
   if(va >= MAXVA)
@@ -95,7 +94,7 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
       // level=1时，pagetable指向level=0的页表
       pagetable = (pagetable_t)PTE2PA(*pte);
     } else {
-      // 对应PTE不存在，且alloc被置位，则为该PTE指向的下一层页表分配一页
+      // 对应PTE不存在，且alloc不为0，则为该PTE指向的下一层页表分配一页
       if (!alloc || (pagetable = (pde_t*)kalloc()) == 0)
         return 0;
       // 清空页表
@@ -163,7 +162,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
       return -1;
     if(*pte & PTE_V)
       panic("mappages: remap");
-    // 将物理地址pa的PPN提取出来，加上标志位信息perm和有效位PTE_V
+    // 将物理地址pa的PPN提取出来，加上标志位信息perm和有效位PTE_V，就构成了最终的56位物理地址
     *pte = PA2PTE(pa) | perm | PTE_V;
     // 分到了能够满足size的最小页数就返回,
     if (a == last)

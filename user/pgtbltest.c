@@ -58,13 +58,14 @@ pgaccess_test()
   printf("pgaccess_test starting\n");
   testname = "pgaccess_test";
   buf = malloc(32 * PGSIZE);
-  // buf[PGSIZE * 1] += 1;
+  // 去掉buf[0]的访问，相当于重置PTE_A，然后开始检测页面访问
   if (pgaccess(buf, 32, &abits) < 0)
     err("pgaccess failed");
   printf("%d \n", abits);
   buf[PGSIZE * 1] += 1;
   buf[PGSIZE * 2] += 1;
   buf[PGSIZE * 30] += 1;
+  // printf("%s \n", buf[PGSIZE * 1]);
   if (pgaccess(buf, 32, &abits) < 0)
     err("pgaccess failed");
   printf("%d \n", abits);
