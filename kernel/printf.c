@@ -132,3 +132,18 @@ printfinit(void)
   initlock(&pr.lock, "pr");
   pr.locking = 1;
 }
+
+void
+backtrace(void) {
+  uint64 current_fp = r_fp();
+  // printf("%p\n", current_fp);
+  uint64 top = PGROUNDDOWN(current_fp);
+  uint64 bottom = PGROUNDUP(current_fp);
+  // printf("%p %p\n", top, bottom);
+  while (current_fp < bottom && current_fp > top) {
+    // 先转为frame pointer，然后解引用，获取函数地址
+    printf("%p\n", *(uint64*)(current_fp - 8));
+    current_fp = *(uint64*)(current_fp - 16);
+  }
+  // printf("%p\n", current_fp);
+}
