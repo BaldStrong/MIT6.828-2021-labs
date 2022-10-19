@@ -153,5 +153,5 @@ slow_handler()
     asm volatile("nop"); // avoid compiler optimizing away loop
   }
   sigalarm(0, 0);
-  sigreturn();
+sigreturn();
 }

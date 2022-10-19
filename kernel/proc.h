@@ -105,4 +105,40 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  int interval;
+  uint64 last_syscall_ticks;   // Last time a process was started
+  void (*handler)();
+  int in_handler; 
+  uint64 save_epc;
+  uint64 save_ra;
+  uint64 save_sp;
+  uint64 save_gp;
+  uint64 save_tp;
+  uint64 save_t0;
+  uint64 save_t1;
+  uint64 save_t2;
+  uint64 save_s0;
+  uint64 save_s1;
+  uint64 save_a0;
+  uint64 save_a1;
+  uint64 save_a2;
+  uint64 save_a3;
+  uint64 save_a4;
+  uint64 save_a5;
+  uint64 save_a6;
+  uint64 save_a7;
+  uint64 save_s2;
+  uint64 save_s3;
+  uint64 save_s4;
+  uint64 save_s5;
+  uint64 save_s6;
+  uint64 save_s7;
+  uint64 save_s8;
+  uint64 save_s9;
+  uint64 save_s10;
+  uint64 save_s11;
+  uint64 save_t3;
+  uint64 save_t4;
+  uint64 save_t5;
+  uint64 save_t6;
 };
