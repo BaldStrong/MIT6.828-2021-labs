@@ -1,0 +1,24 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "gdb",
+            "request": "attach",
+            "name": "Attach to QEMU",
+            //替换为自己的可执行文件路径
+            "executable": "${workspaceFolder}/user/_cowtest",
+            //将端口替换为当前实验中qemu打开的端口，例如xv6习惯于使用26000
+            "target": "localhost:26011",
+            "remote": true,
+            "cwd": "${workspaceRoot}",
+            //替换为相应的gdb可执行文件的地址
+            "gdbpath": "/usr/local/bin/riscv64-unknown-elf-gdb",
+            "autorun": [
+                //添加其他需要的文件提供调试信息
+                "file user/_cowtest",
+                //在入口函数下断点
+                "b cowtest.c:32"
+            ]
+        },
+    ]
+}

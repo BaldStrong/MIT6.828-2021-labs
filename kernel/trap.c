@@ -67,6 +67,11 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if (r_scause() == 15) {
+    if (handle_page_fault(p->pagetable, r_stval()) != 0) {
+      // printf("COW fail\n");
+      p->killed = 1;
+    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
@@ -218,3 +223,37 @@ devintr()
   }
 }
 
+uint handle_page_fault(pagetable_t pagetable, uint64 va) {
+  pte_t* pte;
+  uint64 pa;
+  uint flags;
+  char* mem;
+  if (va >= MAXVA) {
+    return -2;
+  }
+  va = PGROUNDDOWN(va);
+  if ((pte = walk(pagetable, va, 0)) == 0) {
+    panic("uvmcopy: pte should exist");
+  }
+  if (*pte & PTE_COW) {
+    // printf("detect COW: %d\n", (*pte & PTE_RSW) >> 8);
+    pa = PTE2PA(*pte);
+    flags = (PTE_FLAGS(*pte) & ~PTE_COW) | PTE_W;
+    if ((mem = kalloc()) == 0) {
+      // printf("goto err\n");
+      // goto err;
+      return -1;
+    }
+    memmove(mem, (char*)pa, PGSIZE);
+    *pte = PA2PTE(mem) | flags;
+    kfree((void*)pa);
+    // uvmunmap(p->pagetable, va, 1, 0);
+    // *pte &= ~PTE_V;
+    // if (mappages(p->pagetable, va, PGSIZE, (uint64)mem, flags) != 0) {
+    //   kfree(mem);
+      // printf("goto err\n");
+      // goto err;
+    // }
+  }
+  return 0;
+}
