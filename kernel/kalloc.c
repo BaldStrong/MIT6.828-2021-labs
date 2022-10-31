@@ -36,6 +36,7 @@ freerange(void *pa_start, void *pa_end)
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
   for (; p + PGSIZE <= (char*)pa_end; p += PGSIZE) {
+    // 因为下面kfree里面要-1，所以这里要+1，因为此时并没有va引用
     inc_ref((void*)p);
     kfree(p);
   }
@@ -56,6 +57,9 @@ kfree(void *pa)
   acquire(&kmem.lock);
   // printf("2\n");
   dec_ref(pa);
+  // 某个物理页面引用计数为0时才会真正释放
+  // 否则由于COW的存在，因为uvmcopy时将子进程的页表也映射到了父进程的物理页面上
+  // 会重复释放物理页面，
   if (get_ref(pa) > 0) {
     release(&kmem.lock);
     return;
@@ -88,7 +92,8 @@ kalloc(void)
   if (r) {
     kmem.freelist = r->next;
     // 这里为啥要DOWN？
-    // 因为没有对齐？所以需要找到所属页面首地址？
+    // 因为没有对齐？所以需要找到所属页面首地址？这样才能把所有地址都归于x个页面
+    // 另外对ref进行加减时都需要加锁
     inc_ref((void*)r);
   }
   release(&kmem.lock);

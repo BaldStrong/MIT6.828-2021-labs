@@ -240,19 +240,16 @@ uint handle_page_fault(pagetable_t pagetable, uint64 va) {
     pa = PTE2PA(*pte);
     flags = (PTE_FLAGS(*pte) & ~PTE_COW) | PTE_W;
     if ((mem = kalloc()) == 0) {
-      // printf("goto err\n");
-      // goto err;
       return -1;
     }
     memmove(mem, (char*)pa, PGSIZE);
+    // 这里只需要修改pte即可，有多种方式。
     *pte = PA2PTE(mem) | flags;
     kfree((void*)pa);
-    // uvmunmap(p->pagetable, va, 1, 0);
-    // *pte &= ~PTE_V;
-    // if (mappages(p->pagetable, va, PGSIZE, (uint64)mem, flags) != 0) {
-    //   kfree(mem);
-      // printf("goto err\n");
-      // goto err;
+    // uvmunmap(pagetable, va, 1, 1);
+    // if (mappages(pagetable, va, PGSIZE, (uint64)mem, flags) != 0) {
+    //   kfree((void*)pa);
+    //   return -1;
     // }
   }
   return 0;
