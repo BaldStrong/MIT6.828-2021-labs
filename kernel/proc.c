@@ -370,7 +370,7 @@ exit(int status)
 
   p->xstate = status;
   p->state = ZOMBIE;
-
+  
   release(&wait_lock);
 
   // Jump into the scheduler, never to return.
