@@ -26,8 +26,12 @@ struct {
 void
 kinit()
 {
-  int id = cpuid();
-  initlock(&kmem[id].lock, "kmem");
+  // int id = cpuid();
+  // initlock(&kmem[id].lock, "kmem");
+  // 这里只初始化当前CPU的也行,其实不初始化也行...
+  for (int i = 0; i < NCPU; i++) {
+    initlock(&kmem[i].lock, "kmem");
+  }
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -57,11 +61,14 @@ kfree(void *pa)
   memset(pa, 1, PGSIZE);
 
   r = (struct run*)pa;
+  // 获取cpuid时要关中断，但是不关也行....
+  push_off();
   int id = cpuid();
   acquire(&kmem[id].lock);
   r->next = kmem[id].freelist;
   kmem[id].freelist = r;
   release(&kmem[id].lock);
+  pop_off();
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -70,16 +77,22 @@ kfree(void *pa)
 void *
 kalloc(void)
 {
-  struct run *r;
+  struct run* r;
+  
+  push_off();
+  
   int id = cpuid();
   acquire(&kmem[id].lock);
   r = kmem[id].freelist;
   if(r)
     kmem[id].freelist = r->next;
   release(&kmem[id].lock);
-  
+  pop_off();
+
+  // 当前CPU的freelist为空，只能去其他CPU那里找一个不为空的
   if (!r) {
     for (int i = 0; i < NCPU; i++) {
+      if(i==id) continue;
       acquire(&kmem[i].lock);
       r = kmem[i].freelist;
       if (r) {
@@ -87,6 +100,7 @@ kalloc(void)
         release(&kmem[i].lock);
         break;
       }
+      // 别忘了在这里释放锁，确保锁匹配的话，要小心只在if里面释放锁，但是进不去if的话，也要释放。
       release(&kmem[i].lock);
     }
   }
