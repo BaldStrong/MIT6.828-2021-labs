@@ -52,6 +52,19 @@ binit(void) {
   }
 }
 
+int can_lock(int id, int j) {
+  int num = BUCKETCOUNT / 2;
+  if (id <= num) {
+    if (j > id && j <= (id + num))
+      return 0;
+  } else {
+    if ((id < j && j < BUCKETCOUNT) || (j <= (id + num) % BUCKETCOUNT)) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
 // Look through buffer cache for block on device dev.
 // If not found, allocate a buffer.
 // In either case, return locked buffer.
@@ -77,14 +90,34 @@ bget(uint dev, uint blockno) {
   uint min_ticks = ~0;
   struct buf* min_b = 0;
   // 从中找到ticks最小且引用计数为0的block
-  for (b = bcache[id].buf; b < bcache[id].buf + NBUF; b++) {
-    if (b->refcnt == 0 && b->ticks < min_ticks) {
-      min_ticks = b->ticks;
-      min_b = b;
+  // for (b = bcache[id].buf; b < bcache[id].buf + NBUF; b++) {
+  //   if (b->refcnt == 0 && b->ticks < min_ticks) {
+  //     min_ticks = b->ticks;
+  //     min_b = b;
+  //   }
+  // }
+  int last_bucket_index = -1;
+  for (int i = 0; i < BUCKETCOUNT; ++i) {
+    if (i != id && can_lock(id, i)) {
+      acquire(&bcache[i].lock);
+    } else if (!can_lock(id, i)) {
+      continue;
     }
+    for (b = bcache[i].buf; b < bcache[i].buf + NBUF; b++) {
+      if (b->refcnt == 0 && b->ticks < min_ticks) {
+        min_ticks = b->ticks;
+        min_b = b;
+        if (last_bucket_index != -1 && i != last_bucket_index && holding(&bcache[last_bucket_index].lock)) {
+          release(&bcache[last_bucket_index].lock);
+        }
+        last_bucket_index = i;
+      }
+    }
+    if (i != id && i != last_bucket_index && holding(&bcache[i].lock)) release(&bcache[i].lock);
   }
-  
+
   if (min_b) {
+    if (holding(&bcache[last_bucket_index].lock)) release(&bcache[last_bucket_index].lock);
     min_b->dev = dev;
     min_b->blockno = blockno;
     min_b->valid = 0;
