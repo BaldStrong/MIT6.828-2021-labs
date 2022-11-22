@@ -63,16 +63,6 @@ binit(void) {
   }
 
 }
-
-// int can_lock(int id, int j) {
-//   int num = BUCKETCOUNT / 2;
-//   if (id <= num && j > id && j <= (id + num)) {
-//       return 0;
-//   } else if ((j > id && j < BUCKETCOUNT) || (j <= (id + num) % BUCKETCOUNT)) {
-//       return 0;
-//   }
-//   return 1;
-// }
 int can_lock(int id, int j) {
   int num = BUCKETCOUNT / 2;
   if (id <= num) {
@@ -137,10 +127,12 @@ bget(uint dev, uint blockno) {
   if (last_bucket_index == -1) panic("bget: no buffers");
 
   // 遍历目标桶，找到最小ticks的block，从链表中去掉
-  // 此处注意，由于可能没有next，所以需要从自身开始
-  for (b = &bcache.head[last_bucket_index]; b; b = b->next) {
+  // 此处注意，由于没有prev,所以只能通过判断下一个块是否是要被替换的，
+  for (b = &bcache.head[last_bucket_index]; b->next; b = b->next) {
+    // printf("%p\t%p\n", b, b->next);
     if ((b->next)->refcnt == 0 && (b->next)->ticks == min_ticks) {
       // 把目标block保存下来，然后从该桶里面去除
+      // res指向了b->next，b->next指向了b->next->next
       struct buf* res = b->next;
       b->next = b->next->next;
 
@@ -199,10 +191,10 @@ brelse(struct buf* b) {
 
   acquire(&bcache.lock[id]);
   b->refcnt--;
+  // 当块被释放时，记录ticks，代表块最后被使用的时间
   if (b->refcnt == 0) {
     b->ticks = ticks;
   }
-
   release(&bcache.lock[id]);
 }
 
