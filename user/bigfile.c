@@ -26,7 +26,7 @@ main()
     if (blocks % 100 == 0)
       printf(".");
   }
-
+  
   printf("\nwrote %d blocks\n", blocks);
   if(blocks != 65803) {
     printf("bigfile: file is too small\n");
