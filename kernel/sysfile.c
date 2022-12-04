@@ -254,6 +254,8 @@ create(char *path, short type, short major, short minor)
     ilock(ip);
     if(type == T_FILE && (ip->type == T_FILE || ip->type == T_DEVICE))
       return ip;
+    if (type == T_SYMLINK)
+      return ip;
     iunlockput(ip);
     return 0;
   }
@@ -320,6 +322,41 @@ sys_open(void)
     iunlockput(ip);
     end_op();
     return -1;
+  }
+  
+  if (ip->type == T_SYMLINK) {
+    if ((omode & O_NOFOLLOW) == 0) {
+      int count = 0;
+      char linkname[MAXPATH];
+      // char* linkname=""; //如果是char*，那么必须要初始化，否则是未初始化的指针
+      while (1) {
+        if (count>=10) {
+          iunlockput(ip);
+          end_op();
+          return -1;
+        }
+        // TODO off和n的关系
+        // if (readi(ip, 0, (uint64)linkname, ip->size - MAXPATH, MAXPATH) != MAXPATH)
+        if (readi(ip, 0, (uint64)linkname, 0, MAXPATH) != MAXPATH)
+          panic("symlink_readi");
+        
+        iunlockput(ip);
+
+        // 根据linkname拿到inode
+        if ((ip = namei(linkname)) == 0) {
+          // 找不到该文件
+          end_op();
+          return -1;
+        }
+
+        ilock(ip); // 切记操作inode的时候，要上锁
+        // 判断该inode类型是否是文件，是的话，代表找到了inode，结束递归
+        if (ip->type == T_FILE) {
+          break;
+        }
+        count++;
+      }
+    }
   }
 
   if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
@@ -483,4 +520,32 @@ sys_pipe(void)
     return -1;
   }
   return 0;
+}
+
+int sys_symlink(void) {
+  // 
+  char target[MAXPATH], path[MAXPATH];
+  struct inode * ip;
+
+  if (argstr(0, target, MAXPATH) < 0 || argstr(1, path, MAXPATH) < 0)
+    return -1;
+  
+  begin_op();
+  // 判断path所代表的文件是否存在，不存在则新建一个类型为T_SYMLINK的inode
+  if ((ip = namei(path)) == 0) {
+    ip = create(path, T_SYMLINK, 0, 0);
+    iunlock(ip);
+  }
+
+  ilock(ip);
+  // 将target写到ip的末尾?为什么是末尾呢
+  // printf("%d\n", ip->size);
+  // if (writei(ip, 0, (uint64)target, ip->size, MAXPATH) != MAXPATH)
+  if (writei(ip, 0, (uint64)target, 0, MAXPATH) != MAXPATH)
+    panic("symlink");
+  iunlockput(ip);
+  
+  end_op();
+  return 0;
+  
 }
