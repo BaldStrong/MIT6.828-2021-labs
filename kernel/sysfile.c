@@ -336,8 +336,12 @@ sys_open(void)
           return -1;
         }
         // TODO off和n的关系
+        // ip->size - MAXPATH是负数，不清楚为啥这样写，但是不如下面两种方法清晰明了
         // if (readi(ip, 0, (uint64)linkname, ip->size - MAXPATH, MAXPATH) != MAXPATH)
-        if (readi(ip, 0, (uint64)linkname, 0, MAXPATH) != MAXPATH)
+        // if (readi(ip, 0, (uint64)linkname, 0, MAXPATH) != MAXPATH)
+        int len;
+        readi(ip, 0, (uint64)&len, 0, sizeof(int));
+        if (readi(ip, 0, (uint64)linkname, sizeof(int), len) < 0)
           panic("symlink_readi");
         
         iunlockput(ip);
@@ -538,10 +542,17 @@ int sys_symlink(void) {
   }
 
   ilock(ip);
+  // TODO sys_symlink
+  int len = strlen(target);
+  // 将target长度写入inode前4个字节，便于readi读取时获取要读入的最大长度
+  writei(ip, 0, (uint64)&len, 0, sizeof(int));
+  // printf("%d-%d\n", len, sizeof(len));
+
   // 将target写到ip的末尾?为什么是末尾呢
   // printf("%d\n", ip->size);
+  // if (writei(ip, 0, (uint64)target, 0, MAXPATH) != MAXPATH)
   // if (writei(ip, 0, (uint64)target, ip->size, MAXPATH) != MAXPATH)
-  if (writei(ip, 0, (uint64)target, 0, MAXPATH) != MAXPATH)
+  if (writei(ip, 0, (uint64)target, sizeof(int), len + 1) < 0)
     panic("symlink");
   iunlockput(ip);
   
