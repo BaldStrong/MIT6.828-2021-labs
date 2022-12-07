@@ -552,7 +552,7 @@ int sys_symlink(void) {
   // printf("%d\n", ip->size);
   // if (writei(ip, 0, (uint64)target, 0, MAXPATH) != MAXPATH)
   // if (writei(ip, 0, (uint64)target, ip->size, MAXPATH) != MAXPATH)
-  if (writei(ip, 0, (uint64)target, sizeof(int), len + 1) < 0)
+  if (writei(ip, 0, (uint64)target, sizeof(int), len ) < 0)
     panic("symlink");
   iunlockput(ip);
   
