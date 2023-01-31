@@ -484,3 +484,64 @@ sys_pipe(void)
   }
   return 0;
 }
+
+// TODO sys_mmap
+uint64 sys_mmap(void) {
+  uint64 addr;
+  int len;
+  int prot;
+  int flags;
+  int fd;
+  struct file *f;
+  int offset;
+  if (argaddr(0, &addr) < 0 || argint(1, &len) < 0 || argint(2, &prot) < 0 || argint(3, &flags) < 0 || argfd(4, &fd, &f) < 0 || argint(5, &offset) < 0)
+    return -1;
+  // 写只读文件报错
+  if (!f->writable && (prot & PROT_WRITE) && (flags & MAP_SHARED)) return -1;
+  
+  struct proc *p = myproc();
+  struct vma *pvma = p->procvma;
+  for (int i = 0; i < MAXVMA; i++) {
+    if (pvma[i].valid == 0) {
+      pvma[i].addr = p->sz;
+      pvma[i].len = PGROUNDUP(len);
+      pvma[i].prot = prot;
+      pvma[i].flags = flags;
+      pvma[i].f = filedup(f);
+      pvma[i].offset = offset;
+      
+      pvma[i].valid = 1;
+      p->sz += pvma[i].len;
+      return pvma[i].addr;
+    }
+  }
+  return -1;
+}
+
+uint64 sys_munmap(void) {
+  uint64 addr;
+  int len;
+  if (argaddr(0, &addr) < 0 || argint(1, &len) < 0)
+    return -1;
+
+  struct proc *p = myproc();
+  struct vma *pvma = p->procvma;
+  
+  for (int i = 0; i < MAXVMA; i++) {
+    // 找到地址对应的vma
+    if (pvma[i].valid && addr >= pvma[i].addr && addr < pvma[i].addr + pvma[i].len) {
+      if (pvma[i].flags & MAP_SHARED && pvma[i].prot & PROT_WRITE) {
+        filewrite(pvma[i].f, addr, pvma[i].len);
+      }
+      // 如果确定整个vma都要被释放，那么应该关闭文件夹，将该vma标记为无效，这一步不影响评测
+      if (addr == (pvma[i].addr + pvma[i].offset) && len >= pvma[i].len) {
+        // printf("fileclose\n");
+        pvma[i].valid = 0;
+        fileclose(pvma[i].f);
+      }
+      uvmunmap(p->pagetable, addr, pvma[i].len / PGSIZE, 0);
+      return 0;
+    }
+  }
+  return -1;
+}

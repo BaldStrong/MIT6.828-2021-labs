@@ -6,6 +6,10 @@
 #include "proc.h"
 #include "defs.h"
 
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
+
 struct spinlock tickslock;
 uint ticks;
 
@@ -67,7 +71,43 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if (r_scause() == 15 || r_scause() == 13) {
+    uint64 va = r_stval();
+    uint flags;
+    char *mem;
+    // va不能超过sp
+    if (va < p->trapframe->sp || va >= p->sz) {
+      goto err;
+    }
+    va = PGROUNDDOWN(va);
+    struct vma *pvma = p->procvma;
+    for (int i = 0; i < MAXVMA; i++) {
+      if (pvma[i].valid && va >= pvma[i].addr + pvma[i].offset && va < pvma[i].addr + pvma[i].offset + pvma[i].len) {
+        if ((mem = kalloc()) == 0) {
+          goto err;
+        }
+        memset(mem, 0, PGSIZE);
+        // #define PTE_R      (1L << 1)
+        // #define PTE_W      (1L << 2)
+        // #define PROT_READ       0x1
+        // #define PROT_WRITE      0x2
+        // mmap的PROT读写flag正好是PTE读写flag的2倍，所以左移1位
+        flags = (pvma[i].prot << 1) | PTE_U;
+        if (mappages(p->pagetable, va, PGSIZE, (uint64)mem, flags) != 0) {
+          kfree(mem);
+          printf("goto err\n");
+          goto err;
+        }
+        int off = va - pvma[i].addr;
+        // 把硬盘inode内存放到内存va处：读取inode内容，放到va，偏移为off，大小为PGSIZE
+        ilock(pvma[i].f->ip);
+        readi(pvma[i].f->ip, 1, va, off, PGSIZE);
+        iunlock(pvma[i].f->ip);
+        break;
+      }
+    }
   } else {
+    err:
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
@@ -217,4 +257,3 @@ devintr()
     return 0;
   }
 }
-
